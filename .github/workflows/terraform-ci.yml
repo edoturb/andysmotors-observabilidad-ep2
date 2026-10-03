@@ -1,0 +1,38 @@
+name: Terraform CI
+
+# Valida el codigo en cada cambio. No necesita credenciales de AWS: solo
+# formatea y valida sintaxis/tipos, por eso corre siempre, incluso en PRs
+# de colaboradores externos.
+on:
+  push:
+    branches: [main]
+    paths: ["infra/**"]
+  pull_request:
+    paths: ["infra/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fmt-and-validate:
+    name: Formato y validacion
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.*"
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive
+
+      - name: terraform init (sin backend remoto)
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate

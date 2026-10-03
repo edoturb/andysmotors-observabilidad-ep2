@@ -1,0 +1,16 @@
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfplan
+infra/crash.log
+infra/terraform.tfvars
+infra/*.auto.tfvars
+infra/backend.tf
+
+# Credenciales AWS Academy
+infra/.aws-credentials
+*.pem
+
+# SO / editor
+.DS_Store

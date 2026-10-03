@@ -1,0 +1,79 @@
+name: Terraform Deploy (AWS Academy)
+
+# Disparo manual a proposito: las credenciales del Learner Lab son temporales
+# (STS) y expiran al cerrar la sesion del lab, asi que no tiene sentido un
+# "apply" automatico en cada push. Cada vez que se quiera desplegar, hay que:
+#
+#   1. Abrir el Learner Lab y copiar las credenciales frescas (AWS Details > AWS CLI)
+#   2. Actualizar los secrets del repositorio (ver docs/GUIA-DESPLIEGUE.md)
+#   3. Disparar este workflow eligiendo la accion: plan | apply | destroy
+on:
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: "Que hacer"
+        required: true
+        type: choice
+        options: [plan, apply, destroy]
+        default: plan
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: terraform ${{ github.event.inputs.accion }}
+    runs-on: ubuntu-latest
+    environment: aws-academy
+    defaults:
+      run:
+        working-directory: infra
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      TF_VAR_admin_cidr: ${{ secrets.TF_VAR_ADMIN_CIDR }}
+      TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
+      TF_VAR_grafana_admin_password: ${{ secrets.TF_VAR_GRAFANA_ADMIN_PASSWORD }}
+      TF_VAR_admin_token: ${{ secrets.TF_VAR_ADMIN_TOKEN }}
+      TF_VAR_project_name: ${{ secrets.TF_VAR_PROJECT_NAME }}
+      # No son secretos: se fijan aqui para que el pipeline nunca despliegue el
+      # stack de referencia (enable_monitoring) ni RDS por accidente, y para
+      # mantener la topologia liviana por defecto. Cambiar directamente este
+      # archivo si se necesita otro valor.
+      TF_VAR_enable_monitoring: "false"
+      TF_VAR_enable_rds: "false"
+      TF_VAR_topologia: "compacta"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.*"
+
+      - name: terraform init
+        run: terraform init
+
+      - name: terraform plan
+        if: github.event.inputs.accion == 'plan'
+        run: terraform plan -out=tfplan
+
+      - name: Subir plan como artefacto
+        if: github.event.inputs.accion == 'plan'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/tfplan
+          retention-days: 3
+
+      - name: terraform apply
+        if: github.event.inputs.accion == 'apply'
+        run: terraform apply -auto-approve
+
+      - name: terraform output
+        if: github.event.inputs.accion == 'apply'
+        run: terraform output
+
+      - name: terraform destroy
+        if: github.event.inputs.accion == 'destroy'
+        run: terraform destroy -auto-approve
